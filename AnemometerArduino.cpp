@@ -1,20 +1,34 @@
+// Title: AnemometerArduino.cpp
+// Purpose:
+//  Measures current wind speed. If wind speed is above a maximum rate, sends signal
+//  to rotate panel. Once in recovery mode, will only rotate based on sub-rate wind
+//  speeds held for 10 minutes.
+
 // Wind Rate Variables
 const int MAX_WIND_RATE_KNOTS = 35;
 const int MIN_WIND_RETURN_RATE_KNOTS = 30;
 int windRateCounter = 0;
 bool flatModeTriggered = 0;
 
-void setup()
+// Sends signal to actuator arduino to go into emergency mode
+void sendFlatMode()
 {
-    // put your setup code here, to run once:
-    Serial.begin(115200);
+    // send signal to actuator to go flat
 }
 
+// Sends signal to actuator arduino to return to normal operation
+void sendNormalMode()
+{
+    // send signal to go back to normal operations
+}
+
+// Math stuff I don't understand
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
 {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
+// Reads anemometer and converts to float value speed
 float getWindSpeed()
 {
     float sensorValue = analogRead(A0);
@@ -29,16 +43,14 @@ float getWindSpeed()
     return mapfloat(voltage, 0.4, 2, 0, 32.4);
 }
 
-void sendFlatMode()
+// Stock setup method
+void setup()
 {
-    // send signal to actuator to go flat
+    // put your setup code here, to run once:
+    Serial.begin(115200);
 }
 
-void sendNormalMode()
-{
-    // send signal to go back to normal operations
-}
-
+// Main execution thread of program
 void loop()
 {
     float windSpeed = 0.0f;
@@ -82,5 +94,3 @@ void loop()
         }
     }
 }
-// <30 10m 
-// >35 20s
