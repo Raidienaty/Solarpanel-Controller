@@ -1,78 +1,135 @@
-int ENB_PIN = 4;
-int IN3_PIN = 3;
-int IN4_PIN = 2;
-int DCA = 11;
-int DCB = 10;
-int targetValueDCMotorEncoder = 100;
-int counter = 0; 
-int aState;
-int aLastState;  
-
-void setup()
+struct DCMotor
 {
-    // put your setup code here, to run once:
-    Serial.begin(115200);
-    pinMode(ENB_PIN, OUTPUT);
-    pinMode(IN3_PIN, OUTPUT);
-    pinMode(IN4_PIN, OUTPUT);
-    pinMode(DCA, INPUT);
-    pinMode(DCB, INPUT);
-    aLastState = digitalRead(DCA);
-    digitalWrite(ENB_PIN, HIGH);
+    // Control Pin Variables
+    const int ENB_PIN = 4;
+    const int IN3_PIN = 3;
+    const int IN4_PIN = 2;
+
+    // Are we going CW or CCW?
+    bool direction = 1;
+
+    // Encoder Pin Variables
+    const int ENCODER_A_PIN = 11;
+    const int ENCODER_B_PIN = 10;
+
+    // Target Encoder Count
+    const int TARGET_VALUE = 100;
+
+    // Encoder Count Variables
+    int encoderCounts = 0;
+    int previousState = 0;
+    int currentState = 0;
+} dcMotor;
+
+// Make DC Motor go clockwise
+void clockwiseMotion()
+{
+    digitalWrite(dcMotor.IN3_PIN, HIGH);
+    digitalWrite(dcMotor.IN4_PIN, LOW);
+
+    dcMotor.direction = 1;
 }
 
+// Make DC Motor go counterclockwise
+void counterclockwiseMotion()
+{
+    digitalWrite(dcMotor.IN3_PIN, LOW);
+    digitalWrite(dcMotor.IN4_PIN, HIGH);
+
+    dcMotor.direction = 0;
+}
+
+// Stop all motion on motor
+void stopMotion()
+{
+    digitalWrite(dcMotor.IN3_PIN, LOW);
+    digitalWrite(dcMotor.IN4_PIN, LOW);
+}
+
+// Switch directions of travel with DC Motor
+void switchMotorDirection()
+{
+    if (dcMotor.direction)
+    {
+        counterclockwiseMotion();
+    }
+    else
+    {
+        clockwiseMotion();
+    }
+
+    dcMotor.direction = !dcMotor.direction;
+}
+
+// Read the encoders and attempt to increment value
 void readEncoder()
 {
-    aState = digitalRead(DCA); // Reads the "current" state of the outputA
-    // If the previous and the current state of the outputA are different, that means a Pulse has occured
-    if (aState != aLastState)
+    // Reads the "current" state of encoder A
+    dcMotor.currentState = digitalRead(dcMotor.ENCODER_A_PIN);
+
+    // If the previous and the current state of encoder A are different, that means a Pulse has occured
+    if (dcMotor.currentState != dcMotor.previousState)
     {
-        // If the outputB state is different to the outputA state, that means the encoder is rotating clockwise
-        if (digitalRead(DCB) != aState)
+        // If the outputB state is different to encoder A state, that means the encoder is rotating clockwise
+        if (digitalRead(dcMotor.ENCODER_B_PIN) != dcMotor.currentState)
         {
-            counter++;
+            dcMotor.encoderCounts++;
         }
         else
         {
-            counter--;
+            dcMotor.encoderCounts--;
         }
         Serial.print("Position: ");
-        Serial.println(counter);
+        Serial.println(dcMotor.encoderCounts);
     }
     else
     {
         //  Serial.print("Failed to change state!\n");
     }
-    aLastState = aState; // Updates the previous state of the outputA with the current state
+
+    // Updates the previous state of the outputA with the current state
+    dcMotor.previousState = dcMotor.currentState;
+}
+
+void setup()
+{
+    // put your setup code here, to run once:
+    Serial.begin(115200);
+
+    // Set the dc motor control pins to be output mode
+    pinMode(dcMotor.ENB_PIN, OUTPUT);
+    pinMode(dcMotor.IN3_PIN, OUTPUT);
+    pinMode(dcMotor.IN4_PIN, OUTPUT);
+
+    // Set the encoder read pins to be input
+    pinMode(dcMotor.ENCODER_A_PIN, INPUT);
+    pinMode(dcMotor.ENCODER_B_PIN, INPUT);
+
+    dcMotor.previousState = digitalRead(dcMotor.ENCODER_A_PIN);
+    digitalWrite(dcMotor.ENB_PIN, HIGH);
 }
 
 void loop()
 {
     // put your main code here, to run repeatedly:
     readEncoder();
-    if (counter > targetValueDCMotorEncoder-4 && counter < targetValueDCMotorEncoder+4)
+
+    // Did we hit our target?
+    if (dcMotor.encoderCounts > dcMotor.TARGET_VALUE-4 && dcMotor.encoderCounts < dcMotor.TARGET_VALUE+4)
     {
-        digitalWrite(IN3_PIN, LOW);
-        digitalWrite(IN4_PIN, LOW);  
+        stopMotion();
     }
-    else if (counter > 300)
+    // Are we above our range?
+    else if (dcMotor.encoderCounts > 300 || dcMotor.encoderCounts < -300)
     {
-        digitalWrite(IN3_PIN, LOW);
-        digitalWrite(IN4_PIN, HIGH);  
+        switchMotorDirection();  
     }
-    else if (counter < -300)
+    else if (dcMotor.encoderCounts < dcMotor.TARGET_VALUE)
     {
-        digitalWrite(IN3_PIN, HIGH);
-        digitalWrite(IN4_PIN, LOW);  
+        clockwiseMotion();
     }
-    else if (counter < targetValueDCMotorEncoder)
+    else if (dcMotor.encoderCounts > dcMotor.TARGET_VALUE)
     {
-        digitalWrite(IN3_PIN, HIGH);
-        digitalWrite(IN4_PIN, LOW); 
-    }
-    else if (counter > targetValueDCMotorEncoder)
-    {
-        digitalWrite(IN3_PIN, LOW);
-        digitalWrite(IN4_PIN, HIGH);  
+        counterclockwiseMotion();
     }
 }

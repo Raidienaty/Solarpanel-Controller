@@ -4,6 +4,8 @@
 //  to rotate panel. Once in recovery mode, will only rotate based on sub-rate wind
 //  speeds held for 10 minutes.
 
+#define ANEMOMETER_PIN A0
+
 // Wind Rate Variables
 const int MAX_WIND_RATE_KNOTS = 35;
 const int MIN_WIND_RETURN_RATE_KNOTS = 30;
@@ -31,7 +33,7 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 // Reads anemometer and converts to float value speed
 float getWindSpeed()
 {
-    float sensorValue = analogRead(A0);
+    float sensorValue = analogRead(ANEMOMETER_PIN);
     // Serial.print("Analog Value =");
     // Serial.println(sensorValue);
 
