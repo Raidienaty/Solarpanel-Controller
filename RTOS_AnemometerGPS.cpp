@@ -18,9 +18,50 @@ bool flatModeTriggered = 0;
 TaskHandle_t GPSHandle;
 TaskHandle_t AnemometerHandle;
 
+// ********************************************************************************
+//                               Anemometer Functions
+// ********************************************************************************
+
+// Sends signal to actuator arduino to go into emergency mode
+void sendFlatMode()
+{
+    // send signal to actuator to go flat
+}
+
+// Sends signal to actuator arduino to return to normal operation
+void sendNormalMode()
+{
+    // send signal to go back to normal operations
+}
+
+// Math stuff I don't understand
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// Reads anemometer and converts to float value speed
+float getWindSpeed()
+{
+    float sensorValue = analogRead(ANEMOMETER_PIN);
+    // Serial.print("Analog Value =");
+    // Serial.println(sensorValue);
+
+    float voltage = (sensorValue / 1024) * 5; //Arduino ADC resolution 0-1023
+    // Serial.print("Voltage =");
+    // Serial.print(voltage);
+    // Serial.println(" V");
+
+    return mapfloat(voltage, 0.4, 2, 0, 32.4);
+}
+
+// ********************************************************************************
+//                               Anemometer Functions
+// ********************************************************************************
+
 void GPS(void *pvParameters)
 {
-    while(true)
+    while (true)
     {
         // GPS
     }
@@ -28,9 +69,48 @@ void GPS(void *pvParameters)
 
 void Anemometer(void *pvParameters)
 {
-    while(true)
+    while (true)
     {
-        // Anemometer
+        float windSpeed = 0.0f;
+        float speedKnots = 0.0f;
+
+        windSpeed = getWindSpeed();
+
+        speedKnots = windSpeed * 1.943844;
+
+        // if we're currently in recovery mode or not
+        if (flatModeTriggered)
+        {
+            // if we are at our 10m passed at wind rate, return to normal
+            if (windRateCounter >= 10)
+            {
+                windRateCounter = 0;
+                flatModeTriggered = false;
+                sendNormalMode();
+            }
+            // if we're currently above the wind rate, log it and delay for 1s
+            else if (speedKnots < MIN_WIND_RETURN_RATE_KNOTS)
+            {
+                windRateCounter++;
+                delay(60000);
+            }
+        }
+        else
+        {
+            // if we are at our 20s passed at max wind rate, trigger flatmode
+            if (windRateCounter >= 20)
+            {
+                windRateCounter = 0;
+                flatModeTriggered = true;
+                sendFlatMode();
+            }
+            // if we're currently above the wind rate, log it and delay for 1s
+            else if (speedKnots > MAX_WIND_RATE_KNOTS)
+            {
+                windRateCounter++;
+                delay(1000);
+            }
+        }
     }
 }
 
