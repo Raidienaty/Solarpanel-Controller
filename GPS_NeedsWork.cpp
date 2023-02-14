@@ -89,36 +89,63 @@ void setup()
 void loop() // run over and over again
 {
     // read data from the GPS in the 'main loop'
-    char c = GPS.read();
+    char gpsInformation = GPS.read();
     // if you want to debug, this is a good time to do it!
     if (GPSECHO)
-    if (c) Serial.print(c);
+    {
+        if (gpsInformation)
+        {
+            Serial.print(gpsInformation);
+        }
+    }
+
     // if a sentence is received, we can check the checksum, parse it...
-    if (GPS.newNMEAreceived()) {
-    // a tricky thing here is if we print the NMEA sentence, or data
-    // we end up not listening and catching other sentences!
-    // so be very wary if using OUTPUT_ALLDATA and trying to print out data
-    //Serial.print(GPS.lastNMEA()); // this also sets the newNMEAreceived() flag to false
-    if (!GPS.parse(GPS.lastNMEA())) // this also sets the newNMEAreceived() flag to false
-        return; // we can fail to parse a sentence in which case we should just wait for another
+    if (GPS.newNMEAreceived()) 
+    {
+        // a tricky thing here is if we print the NMEA sentence, or data
+        // we end up not listening and catching other sentences!
+        // so be very wary if using OUTPUT_ALLDATA and trying to print out data
+        if (!GPS.parse(GPS.lastNMEA())) // this also sets the newNMEAreceived() flag to false
+        {
+            return; // we can fail to parse a sentence in which case we should just wait for another
+        }
     }
 
     // approximately every 2 seconds or so, print out the current stats
     if (millis() - timer > 2000)
     {
         timer = millis(); // reset the timer
+
         Serial.print("\nTime: ");
-        if (GPS.hour < 10) { Serial.print('0'); }
+
+        if (GPS.hour < 10)
+        {
+            Serial.print('0');
+        }
         Serial.print(GPS.hour, DEC); Serial.print(':');
-        if (GPS.minute < 10) { Serial.print('0'); }
+        
+        if (GPS.minute < 10)
+        {
+            Serial.print('0');
+        }
+        
         Serial.print(GPS.minute, DEC); Serial.print(':');
-        if (GPS.seconds < 10) { Serial.print('0'); }
+        
+        if (GPS.seconds < 10)
+        {
+            Serial.print('0');
+        }
+        
         Serial.print(GPS.seconds, DEC); Serial.print('.');
+        
         if (GPS.milliseconds < 10) {
             Serial.print("00");
-        } else if (GPS.milliseconds > 9 && GPS.milliseconds < 100) {
+        }
+        else if (GPS.milliseconds > 9 && GPS.milliseconds < 100)
+        {
             Serial.print("0");
         }
+        
         Serial.println(GPS.milliseconds);
         Serial.print("Date: ");
         Serial.print(GPS.day, DEC); Serial.print('/');
@@ -126,7 +153,9 @@ void loop() // run over and over again
         Serial.println(GPS.year, DEC);
         Serial.print("Fix: "); Serial.print((int)GPS.fix);
         Serial.print(" quality: "); Serial.println((int)GPS.fixquality);
-        if (GPS.fix) {
+        
+        if (GPS.fix)
+        {
             Serial.print("Location: ");
             Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
             Serial.print(", ");
@@ -149,10 +178,6 @@ void loop() // run over and over again
 
         fract_year_deg = fract_year_rad * rad_to_deg;
 
-        //printf("fract_year_rad: %f \n", fract_year_rad);
-
-        //printf("fract_year_deg: %f \n", fract_year_deg);
-
         eqtime = 229.18*(.000075 + .001868*cos(fract_year_rad) - .032077*sin(fract_year_rad)
         - .014615*cos(2*fract_year_rad) - .040849*sin(2*fract_year_rad));
 
@@ -174,36 +199,19 @@ void loop() // run over and over again
 
         off_set = eqtime + (4*long_) - (60*time_zone);
 
-        //printf("off_set: %f \n", off_set);
-
         minute = GPS.minute;
 
         sec = GPS.seconds;
 
         true_solar_time = gps.hour*60 + minute + (sec/60) + off_set;
 
-        //printf("true_solar_time: %f \n", true_solar_time);
-
         Solar_Hour_Angle_deg = (true_solar_time/4)-180;
-
-        //printf("Solar_Hour_Angle_deg: %f \n", Solar_Hour_Angle_deg);
 
         Solar_Hour_Angle_rad = (Solar_Hour_Angle_deg)/rad_to_deg;
 
-        //printf("Solar_Hour_Angle_rad: %f \n", Solar_Hour_Angle_rad);
-
-
         Zenith_rad = acos(sin(lat_rad)*sin(decl_rad) + cos(lat_rad)*cos(decl_rad)*cos(Solar_Hour_Angle_rad));
 
-        //printf("Zenith_rad: %f \n", Zenith_rad);
-
         Zenith_deg = Zenith_rad*rad_to_deg;
-
-        //printf("Zenith_deg: %f \n", Zenith_deg);
-
-        /*if (Zenith_deg>89 && Zenith_deg<92){
-            
-        }*/
 
         Elevation_deg = 90 - Zenith_deg;
 
@@ -212,64 +220,61 @@ void loop() // run over and over again
 
         Elevation_rad = Elevation_deg / rad_to_deg;
 
-        //printf("Elevation_rad: %f \n", Elevation_rad);
-
-        /*Temp_Az = ((sin(lat_rad)*cos(Zenith_rad)-sin(decl_rad))/(cos(lat_rad)*sin(Zenith_rad)));
-
-        printf("Temp_Az: %f \n", Temp_Az);*/
-
-        Azimuth_rad = -(acos(-((sin(lat_rad)*cos(Zenith_rad)-sin(decl_rad))/(cos(lat_rad)*sin(Zenith_rad)))))
-        + (2*PI);
-
-        //printf("Azimuth_rad: %f \n", Azimuth_rad);
+        Azimuth_rad = -(acos(-((sin(lat_rad)*cos(Zenith_rad)-sin(decl_rad))/(cos(lat_rad)*sin(Zenith_rad))))) + (2*PI);
 
         Azimuth_deg = (Azimuth_rad * rad_to_deg);
 
         Serial.print("Azimuth_deg: ");
         Serial.println(Azimuth_deg);
-
-
     }
 }
 
-int calculateDayOfYear(int day, int month, int year) {
-
-// Given a day, month, and year (4 digit), returns 
-// the day of year. Errors return 999.
-
-int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-
-// Verify we got a 4-digit year
-if (year < 1000) {
-return 999;
-}
-
-// Check if it is a leap year, this is confusing business
-// See: https://support.microsoft.com/en-us/kb/214019
-if (year%4  == 0) {
-if (year%100 != 0) {
-    daysInMonth[1] = 29;
-}
-else {
-    if (year%400 == 0) {
-    daysInMonth[1] = 29;
-    }
-}
-}
-
-// Make sure we are on a valid day of the month
-if (day < 1) 
+int calculateDayOfYear(int day, int month, int year)
 {
-return 999;
-} else if (day > daysInMonth[month-1]) {
-return 999;
-}
+    // Given a day, month, and year (4 digit), returns 
+    // the day of year. Errors return 999.
 
-int doy = 0;
-for (int i = 0; i < month - 1; i++) {
-doy += daysInMonth[i];
-}
+    int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
 
-doy += day;
-return doy;
+    // Verify we got a 4-digit year
+    if (year < 1000)
+    {
+        return 999;
+    }
+
+    // Check if it is a leap year, this is confusing business
+    // See: https://support.microsoft.com/en-us/kb/214019
+    if (year % 4  == 0)
+    {
+        if (year % 100 != 0)
+        {
+            daysInMonth[1] = 29;
+        }
+        else
+        {
+            if (year % 400 == 0)
+            {
+                daysInMonth[1] = 29;
+            }
+        }
+    }
+
+    // Make sure we are on a valid day of the month
+    if (day < 1) 
+    {
+        return 999;
+    } 
+    else if (day > daysInMonth[month-1])
+    {
+        return 999;
+    }
+
+    int doy = 0;
+    for (int i = 0; i < month - 1; i++)
+    {
+        doy += daysInMonth[i];
+    }
+
+    doy += day;
+    return doy;
 }

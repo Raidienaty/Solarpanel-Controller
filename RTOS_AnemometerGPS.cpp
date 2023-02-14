@@ -59,11 +59,207 @@ float getWindSpeed()
 //                               Anemometer Functions
 // ********************************************************************************
 
+// ********************************************************************************
+//                                  GPS Functions
+// ********************************************************************************
+
+int calculateDayOfYear(int day, int month, int year)
+{
+    // Given a day, month, and year (4 digit), returns 
+    // the day of year. Errors return 999.
+
+    int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+    // Verify we got a 4-digit year
+    if (year < 1000)
+    {
+        return 999;
+    }
+
+    // Check if it is a leap year, this is confusing business
+    // See: https://support.microsoft.com/en-us/kb/214019
+    if (year % 4  == 0)
+    {
+        if (year % 100 != 0)
+        {
+            daysInMonth[1] = 29;
+        }
+        else
+        {
+            if (year % 400 == 0)
+            {
+                daysInMonth[1] = 29;
+            }
+        }
+    }
+
+    // Make sure we are on a valid day of the month
+    if (day < 1) 
+    {
+        return 999;
+    } 
+    else if (day > daysInMonth[month-1])
+    {
+        return 999;
+    }
+
+    int doy = 0;
+    for (int i = 0; i < month - 1; i++)
+    {
+        doy += daysInMonth[i];
+    }
+
+    doy += day;
+    return doy;
+}
+
+// ********************************************************************************
+//                                  GPS Functions
+// ********************************************************************************
+
 void GPS(void *pvParameters)
 {
     while (true)
     {
-        // GPS
+        // read data from the GPS in the 'main loop'
+        char gpsInformation = GPS.read();
+        // if you want to debug, this is a good time to do it!
+        if (GPSECHO)
+        {
+            if (gpsInformation)
+            {
+                Serial.print(gpsInformation);
+            }
+        }
+
+        // if a sentence is received, we can check the checksum, parse it...
+        if (GPS.newNMEAreceived()) 
+        {
+            // a tricky thing here is if we print the NMEA sentence, or data
+            // we end up not listening and catching other sentences!
+            // so be very wary if using OUTPUT_ALLDATA and trying to print out data
+            if (!GPS.parse(GPS.lastNMEA())) // this also sets the newNMEAreceived() flag to false
+            {
+                return; // we can fail to parse a sentence in which case we should just wait for another
+            }
+        }
+
+        // approximately every 2 seconds or so, print out the current stats
+        if (millis() - timer > 2000)
+        {
+            timer = millis(); // reset the timer
+
+            Serial.print("\nTime: ");
+
+            if (GPS.hour < 10)
+            {
+                Serial.print('0');
+            }
+            Serial.print(GPS.hour, DEC); Serial.print(':');
+            
+            if (GPS.minute < 10)
+            {
+                Serial.print('0');
+            }
+            
+            Serial.print(GPS.minute, DEC); Serial.print(':');
+            
+            if (GPS.seconds < 10)
+            {
+                Serial.print('0');
+            }
+            
+            Serial.print(GPS.seconds, DEC); Serial.print('.');
+            
+            if (GPS.milliseconds < 10) {
+                Serial.print("00");
+            }
+            else if (GPS.milliseconds > 9 && GPS.milliseconds < 100)
+            {
+                Serial.print("0");
+            }
+            
+            Serial.println(GPS.milliseconds);
+            Serial.print("Date: ");
+            Serial.print(GPS.day, DEC); Serial.print('/');
+            Serial.print(GPS.month, DEC); Serial.print("/20");
+            Serial.println(GPS.year, DEC);
+            Serial.print("Fix: "); Serial.print((int)GPS.fix);
+            Serial.print(" quality: "); Serial.println((int)GPS.fixquality);
+            
+            if (GPS.fix)
+            {
+                Serial.print("Location: ");
+                Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
+                Serial.print(", ");
+                Serial.print(GPS.longitude, 4); Serial.println(GPS.lon);
+                Serial.println("Location in Degrees");
+                Serial.print(GPS.latitudeDegrees, 8);
+                Serial.print(", ");
+                Serial.println(GPS.longitudeDegrees, 8);
+                Serial.print("Speed (knots): "); Serial.println(GPS.speed);
+                Serial.print("Angle: "); Serial.println(GPS.angle);
+                Serial.print("Altitude: "); Serial.println(GPS.altitude);
+                Serial.print("Satellites: "); Serial.println((int)GPS.satellites);
+                Serial.print("Antenna status: "); Serial.println((int)GPS.antenna);
+            }
+
+            day = calculateDayOfYear(GPS.day, GPS.month, GPS.year+2000);
+            hour = GPS.hour + time_zone;
+                
+            fract_year_rad = ((2*PI)/365)*(day - 1 + ((hour-12)/24));
+
+            fract_year_deg = fract_year_rad * rad_to_deg;
+
+            eqtime = 229.18*(.000075 + .001868*cos(fract_year_rad) - .032077*sin(fract_year_rad)
+            - .014615*cos(2*fract_year_rad) - .040849*sin(2*fract_year_rad));
+
+            printf("eqtime: %f \n", eqtime);
+
+            decl_rad = 0.006918 - 0.399912*cos(fract_year_rad) + 0.070257*sin(fract_year_rad) 
+            - 0.006758*cos(2*fract_year_rad) + 0.000907*sin(2*fract_year_rad)
+            - 0.002697*cos(3*fract_year_rad) + 0.00148*sin(3*fract_year_rad);
+
+            printf("decl_rad: %f \n", decl_rad);
+
+            decl_deg = decl_rad * rad_to_deg;
+
+            printf("decl_deg: %f \n", decl_deg);
+
+            long_ = GPS.longitudeDegrees;
+            lat_deg = GPS.latitudeDegrees;
+            lat_rad = lat_deg / rad_to_deg;
+
+            off_set = eqtime + (4*long_) - (60*time_zone);
+
+            minute = GPS.minute;
+
+            sec = GPS.seconds;
+
+            true_solar_time = gps.hour*60 + minute + (sec/60) + off_set;
+
+            Solar_Hour_Angle_deg = (true_solar_time/4)-180;
+
+            Solar_Hour_Angle_rad = (Solar_Hour_Angle_deg)/rad_to_deg;
+
+            Zenith_rad = acos(sin(lat_rad)*sin(decl_rad) + cos(lat_rad)*cos(decl_rad)*cos(Solar_Hour_Angle_rad));
+
+            Zenith_deg = Zenith_rad*rad_to_deg;
+
+            Elevation_deg = 90 - Zenith_deg;
+
+            Serial.print("Elevation_deg: ");
+            Serial.println(Elevation_deg);
+
+            Elevation_rad = Elevation_deg / rad_to_deg;
+
+            Azimuth_rad = -(acos(-((sin(lat_rad)*cos(Zenith_rad)-sin(decl_rad))/(cos(lat_rad)*sin(Zenith_rad))))) + (2*PI);
+
+            Azimuth_deg = (Azimuth_rad * rad_to_deg);
+
+            Serial.print("Azimuth_deg: ");
+            Serial.println(Azimuth_deg);
+        }
     }
 }
 
