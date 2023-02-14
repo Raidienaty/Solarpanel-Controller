@@ -1,14 +1,45 @@
 #include <Arduino_FreeRTOS.h>
 #include <semphr.h>
+#include <Adafruit_GPS.h>
 
 // Title: RTOS_AnemometerGPS.cpp
 // Purpose:
 //  Measures current wind speed. If wind speed is above a maximum rate, sends signal
 //  to rotate panel. Once in recovery mode, will only rotate based on sub-rate wind
 //  speeds held for 10 minutes.
-
+//  GPS sends longitude and latitude to the Arduino MEGA which then calculates the
+//  Suns elevation and azimuth which are then sent to the other Arduino MEGA 
+#define GPSSerial Serial1
+Adafruit_GPS GPS(&GPSSerial);
+#define GPSECHO false
 #define ANEMOMETER_PIN A0
+uint32_t timer = millis();
 
+    double rad_to_deg = 180/PI;
+    double fract_year_rad = 0;
+    double fract_year_deg = 0;
+    double day = 0;
+    double hour = 0;
+    double minute = 0;
+    double sec = 0;
+    double long_;
+    //double long_rad = long_ / rad_to_deg;
+    double lat_deg;
+    double lat_rad;
+    double eqtime = 0;
+    double decl_rad = 0;
+    double decl_deg = 0;
+    double off_set = 0;
+    double true_solar_time = 0;
+    double time_zone = -5;
+    double Solar_Hour_Angle_deg = 0;
+    double Solar_Hour_Angle_rad = 0;
+    double Zenith_rad = 0;
+    double Zenith_deg = 0;
+    double Elevation_deg = 0;
+    double Elevation_rad = 0;
+    double Azimuth_rad = 0;
+    double Azimuth_deg = 0;
 // Wind Rate Variables
 const int MAX_WIND_RATE_KNOTS = 35;
 const int MIN_WIND_RETURN_RATE_KNOTS = 30;
@@ -117,7 +148,7 @@ int calculateDayOfYear(int day, int month, int year)
 //                                  GPS Functions
 // ********************************************************************************
 
-void GPS(void *pvParameters)
+void GLOBAL(void *pvParameters)
 {
     while (true)
     {
@@ -236,7 +267,7 @@ void GPS(void *pvParameters)
 
             sec = GPS.seconds;
 
-            true_solar_time = gps.hour*60 + minute + (sec/60) + off_set;
+            true_solar_time = GPS.hour*60 + minute + (sec/60) + off_set;
 
             Solar_Hour_Angle_deg = (true_solar_time/4)-180;
 
@@ -349,7 +380,7 @@ void setup()
 
     pinMode(LED_BUILTIN, OUTPUT);
 
-    xTaskCreate(GPS, "GPSTask", 128, NULL, 1, &GPSHandle);
+    xTaskCreate(GLOBAL, "GLOBALTask", 128, NULL, 1, &GPSHandle);
     xTaskCreate(Anemometer, "AnemometerTask", 128, NULL, 1, &AnemometerHandle);
 }
 
