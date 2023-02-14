@@ -1,31 +1,46 @@
-const int TX_PIN = 0;
-const int RX_PIN = 0;
+// rx end for receiving transmission and echoing result to tx
+// With serial input either from USB channel or BT channel
+//    Receive with start and end markers combined with parsing x,y
+
+#include <SoftwareSerial.h>
+
+SoftwareSerial BTSerial(15, 14); // RX, TX
+
+byte id = 'r';    // initialise to tx or rx as desired (one for each device)
 
 void setup()
 {
     Serial.begin(115200);
-    pinMode(TX_PIN, OUTPUT);
-    pinMode(RX_PIN, INPUT);
+    BTSerial.begin(115200);
 }
 
 void loop()
 {
-    int readValue = digitalRead(TX_PIN);  
-
-    if (readValue == LOW)
+    while(BTSerial.available())
     {
-        Serial.print("Read low value!");
-        
+        if (id == 'r')
+        {
+            int readValue = (int)BTSerial.read();
 
-        Serial.print("Writing high value!");
-        digitalWrite(TX_PIN, HIGH);
-    } 
-    else
-    {
-        Serial.print("Reading high value!");
+            if (readValue == -1)
+            {
+                Serial.println("Failed to read value!");
+            }
 
-        Serial.print("Writing low value!");
-        digitalWrite(RX_PIN, LOW);
+            Serial.print("Read: ");
+            Serial.println(readValue);
+        }
+        else if (id == 't')
+        {
+            int writeValue = 10;
+
+            int valueWritten = BTSerial.write(writeValue);
+
+            if (valueWritten != writeValue)
+            {
+                Serial.print("Possibly failed to write value! Written value: ");
+                Serial.println(valueWritten);
+            }
+        }
     }
-    delay(10);       
 }
