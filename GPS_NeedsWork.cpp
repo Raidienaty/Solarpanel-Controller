@@ -31,16 +31,13 @@ uint32_t timer = millis();
     double rad_to_deg = 180/PI;
     double fract_year_rad = 0;
     double fract_year_deg = 0;
-    double day_of_year = 0;
-    double day = 14;
-    double month = 2;
-    double year = 2023;
-    double hour = 12;
-    double minute = 5;
+    double day = 0;
+    double hour = 0;
+    double minute = 0;
     double sec = 0;
     double long_;
+    //double long_rad = long_ / rad_to_deg;
     double lat_deg;
-     //double long_rad = long_ / rad_to_deg;
     double lat_rad;
     double eqtime = 0;
     double decl_rad = 0;
@@ -55,7 +52,8 @@ uint32_t timer = millis();
     double Elevation_deg = 0;
     double Elevation_rad = 0;
     double Azimuth_rad = 0;
-    double Azimuth_deg = 0;   
+    double Azimuth_deg = 0;
+    
 
 void setup()
 {
@@ -65,6 +63,7 @@ void setup()
   // also spit it out
   Serial.begin(115200);
   Serial.println("Adafruit GPS library basic parsing test!");
+
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
   GPS.begin(9600);
   // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
@@ -142,82 +141,65 @@ void loop() // run over and over again
       Serial.print("Antenna status: "); Serial.println((int)GPS.antenna);
     }
     
-    //Comment out the following to run specific time tests
-   // day = calculateDayOfYear(GPS.day, GPS.month, GPS.year+2000);
-    //hour = GPS.hour + time_zone;
-    //Uncomment the following to run specific time tests
-  day_of_year = calculateDayOfYear(day, month, year);
-  
-    //Serial.print("day_of_year: ");
-    //Serial.println(day_of_year);
-    fract_year_rad = ((2*PI)/365)*(day_of_year - 1 + ((hour-12)/24));
+    day = calculateDayOfYear(GPS.day, GPS.month, GPS.year+2000);
+    hour = GPS.hour + time_zone;
+     
+    fract_year_rad = ((2*PI)/365)*(day - 1 + ((hour-12)/24));
    
     fract_year_deg = fract_year_rad * rad_to_deg;
     
-    //Serial.print("fract_year_rad: ");
-    //Serial.println(fract_year_rad);
-    //Serial.print("fract_year_deg: ");
-    //Serial.println(fract_year_deg);
+    //printf("fract_year_rad: %f \n", fract_year_rad);
     
-    eqtime = (229.18)*((.000075) + (.001868*cos(fract_year_rad)) - (.032077*sin(fract_year_rad))
-    - (0.014615*cos(2*fract_year_rad)) - (0.040849*sin(2*fract_year_rad)));
+    //printf("fract_year_deg: %f \n", fract_year_deg);
     
-    //Serial.print("eqtime: ");
-    //Serial.println(eqtime);
-
-    decl_rad = (0.006918) - (0.399912*cos(fract_year_rad)) + (0.070257*sin(fract_year_rad)) 
-    - (0.006758*cos(2*fract_year_rad)) + (0.000907*sin(2*fract_year_rad))
-    - (0.002697*cos(3*fract_year_rad)) + (0.00148*sin(3*fract_year_rad));
+    eqtime = 229.18*(.000075 + .001868*cos(fract_year_rad) - .032077*sin(fract_year_rad)
+    - .014615*cos(2*fract_year_rad) - .040849*sin(2*fract_year_rad));
     
-    //Serial.print("decl_rad: ");
-    //Serial.println(decl_rad);
+    printf("eqtime: %f \n", eqtime);
+    
+    decl_rad = 0.006918 - 0.399912*cos(fract_year_rad) + 0.070257*sin(fract_year_rad) 
+    - 0.006758*cos(2*fract_year_rad) + 0.000907*sin(2*fract_year_rad)
+    - 0.002697*cos(3*fract_year_rad) + 0.00148*sin(3*fract_year_rad);
+    
+    printf("decl_rad: %f \n", decl_rad);
 
     decl_deg = decl_rad * rad_to_deg;
     
-    long_ = GPS.longitude;
-    lat_deg = GPS.latitudeDegrees;    
-    //Serial.print("decl_deg: ");
-    //Serial.println(decl_deg); 
-    //Comment out the following to run demonstrations with specific Longitude and Latitude
-    //long_ = GPS.longitudeDegrees;
-    //lat_deg = GPS.latitudeDegrees;
-    //lat_rad = lat_deg / rad_to_deg;
+    printf("decl_deg: %f \n", decl_deg);
 
+    long_ = GPS.longitudeDegrees;
+    lat_deg = GPS.latitudeDegrees;
     lat_rad = lat_deg / rad_to_deg;
     
     off_set = eqtime + (4*long_) - (60*time_zone);
     
-    //Serial.print("off_set: ");
-    //Serial.println(off_set);
-    //minute = GPS.minute;
+    //printf("off_set: %f \n", off_set);
 
-    //sec = GPS.seconds;
-    //true_solar_time = (GPS.hour*60) + minute + (sec/60.0) + off_set;
-    true_solar_time = (hour*60) + minute + (sec/60.0) + off_set;
+    minute = GPS.minute;
+
+    sec = GPS.seconds;
     
-    //Serial.print("true_solar_time: ");
-    //Serial.println(true_solar_time);
-
-    Solar_Hour_Angle_deg = (true_solar_time/4.0)-180;
-          
-    //Serial.print("Solar_Hour_Angle_deg: ");
-    //Serial.println(Solar_Hour_Angle_deg);
-
+    true_solar_time = gps.hour*60 + minute + (sec/60) + off_set;
+    
+    //printf("true_solar_time: %f \n", true_solar_time);
+    
+    Solar_Hour_Angle_deg = (true_solar_time/4)-180;
+    
+    //printf("Solar_Hour_Angle_deg: %f \n", Solar_Hour_Angle_deg);
+    
     Solar_Hour_Angle_rad = (Solar_Hour_Angle_deg)/rad_to_deg;
     
-    //Serial.print("Solar_Hour_Angle_rad: ");
-    //Serial.println(Solar_Hour_Angle_rad);
+    //printf("Solar_Hour_Angle_rad: %f \n", Solar_Hour_Angle_rad);
+
     
-    Zenith_rad = acos((sin(lat_rad)*sin(decl_rad)) + (cos(lat_rad)*cos(decl_rad)*cos(Solar_Hour_Angle_rad)));
+    Zenith_rad = acos(sin(lat_rad)*sin(decl_rad) + cos(lat_rad)*cos(decl_rad)*cos(Solar_Hour_Angle_rad));
     
-    //Serial.print("Zenith_rad: ");
-    //Serial.println(Zenith_rad);
+    //printf("Zenith_rad: %f \n", Zenith_rad);
     
     Zenith_deg = Zenith_rad*rad_to_deg;
     
-    //Serial.print("Zenith_deg: ");
-    //Serial.println(Zenith_deg);
-
+    //printf("Zenith_deg: %f \n", Zenith_deg);
+    
     /*if (Zenith_deg>89 && Zenith_deg<92){
         
     }*/
@@ -226,28 +208,25 @@ void loop() // run over and over again
     
     Serial.print("Elevation_deg: ");
     Serial.println(Elevation_deg);
-    // Serial.print("Elevation_rad: %f \n", Elevation_rad);
+    
+    Elevation_rad = Elevation_deg / rad_to_deg;
+    
+    //printf("Elevation_rad: %f \n", Elevation_rad);
     
     /*Temp_Az = ((sin(lat_rad)*cos(Zenith_rad)-sin(decl_rad))/(cos(lat_rad)*sin(Zenith_rad)));
     
-    Serial.print("Temp_Az: %f \n", Temp_Az);*/
+    printf("Temp_Az: %f \n", Temp_Az);*/
     
     Azimuth_rad = -(acos(-((sin(lat_rad)*cos(Zenith_rad)-sin(decl_rad))/(cos(lat_rad)*sin(Zenith_rad)))))
     + (2*PI);
     
-    //Serial.print("Azimuth_rad: ");
-    //Serial.println(Azimuth_rad);
-
+    //printf("Azimuth_rad: %f \n", Azimuth_rad);
+    
     Azimuth_deg = (Azimuth_rad * rad_to_deg);
     
     Serial.print("Azimuth_deg: ");
     Serial.println(Azimuth_deg);
     
-    Serial.print("GPS Latitude: ");
-    Serial.println(GPS.latitudeDegrees);
-
-    Serial.print("GPS Longitude: ");
-    Serial.println(GPS.longitudeDegrees);
     
   }
 }
