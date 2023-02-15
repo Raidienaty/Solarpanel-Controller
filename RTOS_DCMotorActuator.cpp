@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <MPU6050.h>
+#include <string>
 
 MPU6050 mpu;
 
@@ -16,7 +17,7 @@ MPU6050 mpu;
 int counter = 0;
 int currentStateCLK;
 int lastStateCLK;
-String currentDir ="";
+std::string currentDir ="";
 
 // ********************************************************************************
 //                               Rotary Encoder Functions
@@ -86,6 +87,20 @@ void extendActuator()
     digitalWrite(IN2_PIN, LOW);
 }
 
+int calculatePitchDegrees(Vector normAccel)
+{
+    return -1 * (
+        atan2(
+            normAccel.XAxis, 
+            sqrt(
+                normAccel.YAxis*normAccel.YAxis 
+                + normAccel.ZAxis*normAccel.ZAxis
+            )
+        )
+        * 180.0
+    ) / M_PI;
+} 
+
 // ********************************************************************************
 //                               Actuator Functions
 // ********************************************************************************
@@ -142,17 +157,20 @@ void readEncoder()
 
 	// If last and current state of CLK are different, then pulse occurred
 	// React to only 1 state change to avoid double count
-	if (currentStateCLK != lastStateCLK  && currentStateCLK == 1){
-
+	if (currentStateCLK != lastStateCLK  && currentStateCLK == 1)
+    {
 		// If the DT state is different than the CLK state then
 		// the encoder is rotating CCW so decrement
-		if (digitalRead(DT) != currentStateCLK) {
-			counter --;
-			currentDir ="CCW";
-		} else {
+		if (digitalRead(DT) != currentStateCLK)
+        {
+			counter--;
+			currentDir = "CCW";
+		}
+        else
+        {
 			// Encoder is rotating CW so increment
-			counter ++;
-			currentDir ="CW";
+			counter++;
+			currentDir = "CW";
 		}
 
 		Serial.print("Direction: ");
@@ -163,7 +181,6 @@ void readEncoder()
 
 	// Remember last CLK state
 	lastStateCLK = currentStateCLK;
-
 }
 
 // ********************************************************************************
@@ -178,21 +195,21 @@ void Actuator(void *pvParameters)
         Vector normAccel = mpu.readNormalizeAccel();
 
         // Calculate Pitch & Roll
-        int pitchDegrees = -(atan2(normAccel.XAxis, sqrt(normAccel.YAxis*normAccel.YAxis + normAccel.ZAxis*normAccel.ZAxis))*180.0)/M_PI;
+        int pitchDegrees = calculatePitchDegrees(normAccel);
 
         // Output
         Serial.print(" Pitch = ");
-        Serial.print(pitch);
+        Serial.print(pitchDegrees);
 
         Serial.println();
 
         delay(10);
 
-        if (pitch < targetValuePitch - 3)
+        if (pitchDegrees < targetValuePitch - 3)
         {
             extendActuator();
         }
-        else if (pitch > targetValuePitch + 3)
+        else if (pitchDegrees > targetValuePitch + 3)
         {
             retractActuator();
         }
@@ -215,37 +232,39 @@ void Actuator(void *pvParameters)
 
 void ReceiveGoals()
 {
- if (Serial1.available()) 
-  {
-    // Allocate the JSON document
-    // This one must be bigger than the sender's because it must store the strings
-    StaticJsonDocument<300> doc;
-
-    // Read the JSON document from the "link" serial port
-    DeserializationError err = deserializeJson(doc, Serial1);
-
-    if (err == DeserializationError::Ok) 
+    if (Serial1.available()) 
     {
-      // Print the values
-      // (we must use as<T>() to resolve the ambiguity)
-      Serial.print("Elevation = ");
-      Serial.println(doc["Elevation"].as<int>());
-      Serial.print("Azimuth = ");
-      Serial.println(doc["Azimuth"].as<int>());
-      int Elevation = (doc["Elevation"].as<int>());
-      int Azimuth = (doc["Azimuth"].as<int>());
-    } 
-    else 
-    {
-      // Print error to the "debug" serial port
-      Serial.print("deserializeJson() returned ");
-      Serial.println(err.c_str());
-  
-      // Flush all bytes in the "link" serial port buffer
-      while (Serial1.available() > 0)
-        Serial1.read();
+        // Allocate the JSON document
+        // This one must be bigger than the sender's because it must store the strings
+        StaticJsonDocument<300> doc;
+
+        // Read the JSON document from the "link" serial port
+        DeserializationError err = deserializeJson(doc, Serial1);
+
+        if (err == DeserializationError::Ok) 
+        {
+            // Print the values
+            // (we must use as<T>() to resolve the ambiguity)
+            Serial.print("Elevation = ");
+            Serial.println(doc["Elevation"].as<int>());
+            Serial.print("Azimuth = ");
+            Serial.println(doc["Azimuth"].as<int>());
+            int Elevation = (doc["Elevation"].as<int>());
+            int Azimuth = (doc["Azimuth"].as<int>());
+        } 
+        else 
+        {
+            // Print error to the "debug" serial port
+            Serial.print("deserializeJson() returned ");
+            Serial.println(err.c_str());
+        
+            // Flush all bytes in the "link" serial port buffer
+            while (Serial1.available() > 0)
+            {
+                Serial1.read();
+            }
+        }
     }
-  }
 }
 
 // ********************************************************************************
@@ -292,11 +311,13 @@ void setup()
 {
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
-     while (!Serial) continue;
 
-     // Initialize the "link" serial port
-     // Use a low data rate to reduce the error ratio
-     Serial1.begin(9600);
+    while (!Serial) continue;
+
+    // Initialize the "link" serial port
+    // Use a low data rate to reduce the error ratio
+    Serial1.begin(9600);
+
     // ********************************************************************************
     //                                 Actuator Setup
     // ********************************************************************************
@@ -344,8 +365,10 @@ void setup()
     // ********************************************************************************
     //                                Rotary Encoder Setup
     // ********************************************************************************
-	  pinMode(CLK,INPUT);
-	  pinMode(DT,INPUT);
+
+    pinMode(CLK, INPUT);
+    pinMode(DT, INPUT);
+
     // ********************************************************************************
     //                                Rotary Encoder Setup
     // ********************************************************************************
