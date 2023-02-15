@@ -1,16 +1,41 @@
 #include <Arduino_FreeRTOS.h>
 #include <semphr.h>
-
+#include <ArduinoJson.h>
 #include <Wire.h>
 #include <MPU6050.h>
 
 MPU6050 mpu;
 
+// ********************************************************************************
+//                               Rotary Encoder Functions
+// ********************************************************************************
+
+#define CLK 12
+#define DT 13
+
+int counter = 0;
+int currentStateCLK;
+int lastStateCLK;
+String currentDir ="";
+
+// ********************************************************************************
+//                               Rotary Encoder Functions
+// ********************************************************************************
+
+
+// ********************************************************************************
+//                               Actuator Pinout
+// ********************************************************************************
+
 const int ENA_PIN = 7;
 const int IN1_PIN = 6;
 const int IN2_PIN = 5;
 
-int targetValuePitch = 30;
+// ********************************************************************************
+//                               Actuator Pinout
+// ********************************************************************************
+
+int targetValuePitch = Elevation;
 
 struct DCMotor
 {
@@ -27,7 +52,7 @@ struct DCMotor
     const int ENCODER_B_PIN = 10;
 
     // Target Encoder Count
-    const int TARGET_VALUE = 100;
+    int TARGET_VALUE = Azimuth;
 
     // Encoder Count Variables
     int encoderCounts = 0;
@@ -35,8 +60,9 @@ struct DCMotor
     int currentState = 0;
 } dcMotor;
 
-TaskHandle_t Task1Handle;
-TaskHandle_t Task2Handle;
+TaskHandle_t Actuator;
+TaskHandle_t DCMotor;
+TaskHandle_t ReceiveGoals;
 
 // ********************************************************************************
 //                               Actuator Functions
@@ -111,35 +137,37 @@ void switchMotorDirection()
 // Read the encoders and attempt to increment value
 void readEncoder()
 {
-    // Reads the "current" state of encoder A
-    dcMotor.currentState = digitalRead(dcMotor.ENCODER_A_PIN);
+   // Read the current state of CLK
+	currentStateCLK = digitalRead(CLK);
 
-    // If the previous and the current state of encoder A are different, that means a Pulse has occured
-    if (dcMotor.currentState != dcMotor.previousState)
-    {
-        // If the outputB state is different to encoder A state, that means the encoder is rotating clockwise
-        if (digitalRead(dcMotor.ENCODER_B_PIN) != dcMotor.currentState)
-        {
-            dcMotor.encoderCounts++;
-        }
-        else
-        {
-            dcMotor.encoderCounts--;
-        }
-        Serial.print("Position: ");
-        Serial.println(dcMotor.encoderCounts);
-    }
-    else
-    {
-        //  Serial.print("Failed to change state!\n");
-    }
+	// If last and current state of CLK are different, then pulse occurred
+	// React to only 1 state change to avoid double count
+	if (currentStateCLK != lastStateCLK  && currentStateCLK == 1){
 
-    // Updates the previous state of the outputA with the current state
-    dcMotor.previousState = dcMotor.currentState;
+		// If the DT state is different than the CLK state then
+		// the encoder is rotating CCW so decrement
+		if (digitalRead(DT) != currentStateCLK) {
+			counter --;
+			currentDir ="CCW";
+		} else {
+			// Encoder is rotating CW so increment
+			counter ++;
+			currentDir ="CW";
+		}
+
+		Serial.print("Direction: ");
+		Serial.print(currentDir);
+		Serial.print(" | Counter: ");
+		Serial.println(counter);
+	}
+
+	// Remember last CLK state
+	lastStateCLK = currentStateCLK;
+
 }
 
 // ********************************************************************************
-//                               DCMotor Functions
+//                               Actuator Functions
 // ********************************************************************************
 
 void Actuator(void *pvParameters)
@@ -151,13 +179,10 @@ void Actuator(void *pvParameters)
 
         // Calculate Pitch & Roll
         int pitchDegrees = -(atan2(normAccel.XAxis, sqrt(normAccel.YAxis*normAccel.YAxis + normAccel.ZAxis*normAccel.ZAxis))*180.0)/M_PI;
-        int rollDegrees = (atan2(normAccel.YAxis, normAccel.ZAxis)*180.0)/M_PI;
 
         // Output
         Serial.print(" Pitch = ");
         Serial.print(pitch);
-        Serial.print(" Roll = ");
-        Serial.print(roll);
 
         Serial.println();
 
@@ -179,6 +204,57 @@ void Actuator(void *pvParameters)
         delay(10);
     }
 }
+
+// ********************************************************************************
+//                               Actuator Functions
+// ********************************************************************************
+
+// ********************************************************************************
+//                               Receive Data Functions
+// ********************************************************************************
+
+void ReceiveGoals()
+{
+ if (Serial1.available()) 
+  {
+    // Allocate the JSON document
+    // This one must be bigger than the sender's because it must store the strings
+    StaticJsonDocument<300> doc;
+
+    // Read the JSON document from the "link" serial port
+    DeserializationError err = deserializeJson(doc, Serial1);
+
+    if (err == DeserializationError::Ok) 
+    {
+      // Print the values
+      // (we must use as<T>() to resolve the ambiguity)
+      Serial.print("Elevation = ");
+      Serial.println(doc["Elevation"].as<int>());
+      Serial.print("Azimuth = ");
+      Serial.println(doc["Azimuth"].as<int>());
+      int Elevation = (doc["Elevation"].as<int>());
+      int Azimuth = (doc["Azimuth"].as<int>());
+    } 
+    else 
+    {
+      // Print error to the "debug" serial port
+      Serial.print("deserializeJson() returned ");
+      Serial.println(err.c_str());
+  
+      // Flush all bytes in the "link" serial port buffer
+      while (Serial1.available() > 0)
+        Serial1.read();
+    }
+  }
+}
+
+// ********************************************************************************
+//                               Receive Data Functions
+// ********************************************************************************
+
+// ********************************************************************************
+//                               DC Motor Functions
+// ********************************************************************************
 
 void DCMotor(void *pvParameters)
 {
@@ -208,11 +284,19 @@ void DCMotor(void *pvParameters)
     }
 }
 
+// ********************************************************************************
+//                               DC Motor Functions
+// ********************************************************************************
+
 void setup()
 {
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
+     while (!Serial) continue;
 
+     // Initialize the "link" serial port
+     // Use a low data rate to reduce the error ratio
+     Serial1.begin(9600);
     // ********************************************************************************
     //                                 Actuator Setup
     // ********************************************************************************
@@ -257,8 +341,18 @@ void setup()
     //                                 DCMotor Setup
     // ********************************************************************************
 
+    // ********************************************************************************
+    //                                Rotary Encoder Setup
+    // ********************************************************************************
+	  pinMode(CLK,INPUT);
+	  pinMode(DT,INPUT);
+    // ********************************************************************************
+    //                                Rotary Encoder Setup
+    // ********************************************************************************
+
     xTaskCreate(Actuator, "Actuator", 128, NULL, 1, &Actuator);
     xTaskCreate(DCMotor, "DCMotor", 128, NULL, 1, &DCMotor);
+    xTaskCreate(ReceiveGoals, "ReceiveGoals", 128, NULL, 1, &ReceiveGoals)
 }
 
 void loop()

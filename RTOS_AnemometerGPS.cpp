@@ -1,7 +1,7 @@
 #include <Arduino_FreeRTOS.h>
 #include <semphr.h>
 #include <Adafruit_GPS.h>
-
+#include <ArduinoJson.h>
 // Title: RTOS_AnemometerGPS.cpp
 // Purpose:
 //  Measures current wind speed. If wind speed is above a maximum rate, sends signal
@@ -9,7 +9,7 @@
 //  speeds held for 10 minutes.
 //  GPS sends longitude and latitude to the Arduino MEGA which then calculates the
 //  Suns elevation and azimuth which are then sent to the other Arduino MEGA 
-#define GPSSerial Serial1
+#define GPSSerial Serial2
 Adafruit_GPS GPS(&GPSSerial);
 #define GPSECHO false
 #define ANEMOMETER_PIN A0
@@ -46,8 +46,9 @@ const int MIN_WIND_RETURN_RATE_KNOTS = 30;
 int windRateCounter = 0;
 bool flatModeTriggered = 0;
 
-TaskHandle_t GPSHandle;
+TaskHandle_t GLOBALHandle;
 TaskHandle_t AnemometerHandle;
+TaskHandle_t SendGoalsHandle;
 
 // ********************************************************************************
 //                               Anemometer Functions
@@ -341,11 +342,39 @@ void Anemometer(void *pvParameters)
     }
 }
 
+void SendGoals()
+{
+      // Values we want to transmit
+  int Elevation = Elevation_deg();
+  int Azimuth = Azimuth_deg();
+
+  // Print the values on the "debug" serial port
+  Serial.print("Elevation = ");
+  Serial.println(Elevation);
+  Serial.print("Azimuth = ");
+  Serial.println(Azimuth);
+  Serial.println("---");
+
+  // Create the JSON document
+  StaticJsonDocument<200> doc;
+  doc["Elevation"] = Elevation;
+  doc["Azimuth"] = Azimuth;
+
+  // Send the JSON document over the "link" serial port
+  serializeJson(doc, Serial1);
+
+  // Wait
+  delay(5000);
+}
 void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
+    while (!Serial) continue;
 
+     // Initialize the "link" serial port
+     // Use a low data rate to reduce the error ratio
+    Serial1.begin(9600);
     Serial.println("Anemometer is starting up...");
     Serial.println("GPS is starting up...");
 
@@ -380,8 +409,9 @@ void setup()
 
     pinMode(LED_BUILTIN, OUTPUT);
 
-    xTaskCreate(GLOBAL, "GLOBALTask", 128, NULL, 1, &GPSHandle);
+    xTaskCreate(GLOBAL, "GLOBALTask", 128, NULL, 1, &GLOBALHandle);
     xTaskCreate(Anemometer, "AnemometerTask", 128, NULL, 1, &AnemometerHandle);
+    xTaskCreate(SendGoals, "SendGoalsTask", 128, NULL, 1, &SendGoalsHandle);
 }
 
 void loop()
